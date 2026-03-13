@@ -8,10 +8,10 @@ Note that this is a python code only repository.
 
 This repository also serves as a unified entry for Qianfan research outputs, including blogs, papers, tech reports, and project pages.
 
-| Project | Category | Blog | Paper | Tech Report | Project Page | Repo | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Prefix Sampling | Blog / Research | [EN](research/prefix-sampling/README.md) | - | - | - | - | Agentic RL training efficiency blog |
-| Qianfan-VL | Project / Tech Report | - | - | [Report](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) | [Page](https://baidubce.github.io/Qianfan-VL/) | [GitHub](https://github.com/baidubce/Qianfan-VL) | Vision-language model series |
+- **Prefix Sampling** — Blog / Research — [EN](research/prefix-sampling/README.md)  
+  Agentic RL training efficiency blog
+- **Qianfan-VL** — Project / Tech Report — [Tech Report](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) | [Project Page](https://baidubce.github.io/Qianfan-VL/) | [GitHub](https://github.com/baidubce/Qianfan-VL)  
+  Vision-language model series
 
 ## News
 **2026.03.12**: [**Qianfan-OCR: A Unified End-to-End Model for Document Intelligence**](qianfan-ocr/qianfan_ocr_report.pdf) is released! Qianfan-OCR (4B+300M parameters) is now available on [Baidu AI Cloud](https://console.bce.baidu.com/qianfan) Open source weights coming soon!
