@@ -6,7 +6,7 @@ Note that this is a python code only repository.
 
 ## Research & Project Index
 
-This repository also serves as a unified entry for Qianfan research outputs, including blogs, papers, tech reports, and project pages.
+This section collects Qianfan blogs, papers, tech reports, and project pages in one place.
 
 - **Prefix Sampling** — Blog / Research — [EN](research/prefix-sampling/README.md)  
   Agentic RL training efficiency blog

@@ -6,7 +6,7 @@
 
 ## Research / 项目索引
 
-本仓库同时作为 Qianfan research / blog / tech report / project page 的统一入口，便于持续收录后续项目内容。
+本节集中收录 Qianfan 相关的博客、论文、技术报告和项目页面。
 
 - **Prefix Sampling** — Blog / Research — [中文](research/prefix-sampling/README_CN.md)  
   面向 Agentic RL 效率优化的博客
