@@ -10,7 +10,7 @@ This repository also serves as a unified entry for Qianfan research outputs, inc
 
 | Project | Category | Blog | Paper | Tech Report | Project Page | Repo | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Prefix Sampling | Blog / Research | [EN](research/prefix-sampling/README.md) \| [中文](research/prefix-sampling/README_CN.md) | - | - | - | - | Agentic RL training efficiency blog |
+| Prefix Sampling | Blog / Research | [EN](research/prefix-sampling/README.md) | - | - | - | - | Agentic RL training efficiency blog |
 | Qianfan-VL | Project / Tech Report | - | - | [Report](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) | [Page](https://baidubce.github.io/Qianfan-VL/) | [GitHub](https://github.com/baidubce/Qianfan-VL) | Vision-language model series |
 
 ## News
