@@ -8,10 +8,10 @@
 
 本节集中收录 Qianfan 相关的博客、论文、技术报告和项目页面。
 
-- **Prefix Sampling** — Blog / Research — [中文](research/prefix-sampling/README_CN.md)  
-  面向 Agentic RL 效率优化的博客
-- **Qianfan-VL** — Project / Tech Report — [技术报告](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) | [项目页](https://baidubce.github.io/Qianfan-VL/) | [GitHub](https://github.com/baidubce/Qianfan-VL)  
-  视觉语言模型系列
+| 标题 | 介绍 | 链接 |
+| --- | --- | --- |
+| Prefix Sampling — Blog / Research | 面向 Agentic RL 效率优化的博客 | [中文](research/prefix-sampling/README_CN.md) |
+| Qianfan-VL — Project / Tech Report | 视觉语言模型系列 | [技术报告](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) \| [项目页](https://baidubce.github.io/Qianfan-VL/) \| [GitHub](https://github.com/baidubce/Qianfan-VL) |
 
 ## 最新动态
 
