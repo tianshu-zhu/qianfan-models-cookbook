@@ -10,14 +10,14 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 
 ![SWE-bench Verified Score](figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png)
 
-*图 1. SWE-bench Verified pass@1 分数随训练步数变化。PS 以 1.8x 更少的训练步数达到 baseline 的峰值分数，并继续提升，最终达到 0.298，而 baseline 为 0.273。*
+*图 1. SWE-bench Verified pass@1 分数随训练步数变化，结果为 3 次实验取平均。PS 以 1.8x 更少的训练步数达到 baseline 的峰值分数，并继续提升，最终达到 0.298，而 baseline 为 0.273。*
 
 面向 coding agent 的强化学习（RL）会在大量 rollout pass rate 偏斜的任务上浪费不少算力。  
 当模型几乎总是失败，或者几乎总是成功时，梯度信号都会变得很弱，而且带有明显偏置。**50% 的 rollout pass rate 可以最大化梯度信号**，这正是我们要追求的目标。
 
 **Prefix Sampling（PS）是把 rollout pass rate 拉向 50% 的一种直接方法：** 它通过重放 trajectory prefix，把每个任务的有效 rollout pass rate 推向 50%，也就是 binary-reward RL 在信息论意义上的最优点。对于大多数 rollout 都失败的任务，PS 会从一条罕见的成功轨迹中给模型一个 head start；对于大多数 rollout 都成功的任务，PS 会从一条罕见的失败轨迹中给模型一个 handicap。两种情况下，本来带偏的低质量信号都会被转化为更平衡、信息量更高的训练信号。
 
-在 Qwen3-14B（SWE-bench, R2E_Gym）上，PS 在达到相同 SWE-bench Verified pass@1 分数时，端到端速度提升约 **2.07x**（1.8x 更少训练步数 × 1.15x 更快单步速度），并且最终的 pass@1 分数也更高：**0.298** 对比 baseline 的 **0.273**。也就是说，它不仅更快，而且最终效果也更好。
+在 Qwen3-14B（SWE-bench, R2E_Gym）上，基于 3 次实验取平均，PS 在达到相同 SWE-bench Verified pass@1 分数时，端到端速度提升约 **2.07x**（1.8x 更少训练步数 × 1.15x 更快单步速度），并且最终的 pass@1 分数也更高：**0.298** 对比 baseline 的 **0.273**。也就是说，它不仅更快，而且最终效果也更好。
 
 ## 大多数 RL 任务的 Pass Rate 都不对
 
@@ -39,130 +39,13 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 
 ## 为什么 50% Pass Rate 是最优目标
 
-我们从第一性原理出发说明：对于 binary-reward RL，信息量最高的训练区间就是平衡的 rollout pass rate（`p ≈ 0.5`）。  
-这个结论可以从三个互补角度得到：entropy、GRPO advantage variance，以及 contrastive pair count。
+先给结论：对于 binary-reward RL，**50% rollout pass rate 就是最优目标**。它同时最大化信息量、最大化 GRPO 信号强度，并提供最丰富的对比式 credit assignment 结构。  
+完整的数学证明我们放在文末，紧挨着 `Citation` 之前。
 
 **Reader shortcut（先看结论）：**
 - 信息量 `H(p)`、GRPO 信号强度 `p(1-p)`、以及对比结构 `k(N-k)` 都在 `p=0.5` 处达到最大。
 - 偏斜任务（例如 `1/8` 或 `7/8`）并不是完全不能训练，但 sample efficiency 会明显更差。
 - Prefix Sampling 的核心作用，就是把这些偏斜任务往这个高信号区间推过去。
-
-#### 视角 1：Information Theory
-
-在只有 pass/fail 二元反馈的情况下，单个 rollout 能提供的信息量上界，就是 Bernoulli 随机变量的 Shannon entropy：
-
-```
-H(p) = -p·log₂(p) - (1-p)·log₂(1-p)
-```
-
-其中，`p` 表示某个任务的通过概率。
-
-对它求导：
-
-```
-dH/dp = -log₂(p) - 1/ln(2) + log₂(1-p) + 1/ln(2) = log₂((1-p)/p)
-```
-
-令 `dH/dp = 0`：
-
-```
-log₂((1-p)/p) = 0  →  (1-p)/p = 1  →  p = 0.5
-```
-
-再看二阶导：
-
-```
-d²H/dp² = -1/(p·ln2) - 1/((1-p)·ln2) < 0  for all p ∈ (0, 1)
-```
-
-因此，`H(p)` 在 `p = 0.5` 处取得唯一最大值。此时 `H(0.5)=1` bit，是二元反馈能提供的理论最大信息量；而在两端，`H(0)=H(1)=0`。  
-做个量级对比：`H(0.1)≈0.47`，`H(0.01)≈0.08`。  
-这说明 rollout pass rate 一旦偏斜，每个 rollout 能提供的信息量就会显著下降。
-
-#### 视角 2：GRPO 梯度信号强度
-
-Entropy 反映的是“信息有多少”，而 GRPO variance 反映的是“这些信息能多有效地变成参数更新”。  
-对于一个任务，如果共有 `N` 个 rollouts，奖励 `rᵢ ∈ {0,1}`，其中有 `k` 个通过，并令 `p = k/N`，那么 mean-centered advantage 为：
-
-```
-Aᵢ = rᵢ - r̄,  where r̄ = (1/N) Σⱼ rⱼ = k/N
-```
-
-于是：
-
-```
-Passing rollouts (rᵢ = 1):  Aᵢ = 1 - k/N = (N-k)/N
-Failing rollouts (rᵢ = 0):  Aᵢ = 0 - k/N = -k/N
-```
-
-对应的 policy gradient 形式为：
-
-```
-∇J ∝ Σᵢ Aᵢ · ∇log π(τᵢ)
-```
-
-梯度信号强弱取决于 advantage 的方差：
-
-```
-Var(A) = E[A²] - E[A]²
-```
-
-因为 `E[A]=0`，只需求 `E[A²]`：
-
-```
-E[A²] = p·(1-p)² + (1-p)·p² = p(1-p)·[(1-p) + p] = p(1-p)
-```
-
-因此：
-
-```
-Var(A) = p(1-p)
-```
-
-继续求最大值：
-
-```
-d[p(1-p)]/dp = 1 - 2p = 0  →  p = 0.5
-d²[p(1-p)]/dp² = -2 < 0  (confirmed maximum)
-```
-
-所以 `Var(A)` 在 `p=0.5` 时达到最大值 `0.25`。  
-参考一下几个点：`Var(0.1)=0.09`，`Var(0.01)=0.0099`，而 `p=1/8` 时，`Var=0.109`。  
-结论很直接：rollout pass rate 越偏，GRPO 中正负样本之间的对比就越弱，优化器能拿到的有效更新信号也越差。
-
-#### 视角 3：为什么这也会最大化 Credit Assignment
-
-平衡的 rollout pass rate 不仅能带来更强的梯度信号，也能最大化 **credit assignment** 的机会。  
-对于一个有 `N` 个 rollouts、其中 `k` 个成功的任务，成功与失败轨迹之间可形成的 contrastive pairs 数量为：
-
-```
-C(k) = k × (N - k)
-```
-
-配方法可得：
-
-```
-C(k) = k(N-k) = -(k - N/2)² + N²/4
-```
-
-这是一条开口向下的抛物线，因此在 `k = N/2` 处取得最大值，也就是 `p=0.5`。对于 `N=8`：
-
-| k（成功数） | Pass rate | C(k) = k(8-k) | Contrastive pairs |
-|---|---|---|---|
-| 0 | 0% | 0 | 没有正样本 |
-| 1 | 12.5% | 7 | 对比机会很有限 |
-| 2 | 25% | 12 | 有改善，但仍偏斜 |
-| 4 | 50% | 16 | **对比最丰富** |
-| 7 | 87.5% | 7 | 与 k=1 对称 |
-| 8 | 100% | 0 | 没有负样本 |
-
-当 `k=4` 时，总共有 16 个对比对，超过 `k=1` 时 7 个对比对的两倍。  
-这意味着 balanced rollout pass rate 能提供最丰富的 step-level credit assignment 结构，让模型更容易定位“究竟是哪一步导致了成功或失败”。
-
-#### 小结
-
-三个目标其实都指向同一个结论：entropy `H(p)`、GRPO variance `p(1-p)`，以及 contrastive pairs `k(N-k)`，都在 `p=0.5` 时达到最优。  
-因此，训练里追求的目标不应该只是“pass rate 不为 0”，而应该是“尽可能接近最有信息量的 50%”。Prefix Sampling 做的事情，就是把偏斜任务往这个目标点拉回去。
 
 ## Prefix Sampling 是怎么工作的
 
@@ -347,6 +230,133 @@ PS 并不试图拯救完全无解或已经完全无难度的任务，这些任�
 我们在 Qwen3-14B + R2E_Gym 上的实验表明，PS 以 **1.55x 更好的 step-efficiency** 和 **~1.15x 更快的单步 wall-clock 时间** 达到 baseline 的峰值分数，整体实现 **~1.78x 的端到端加速**，并且在 baseline 收敛后仍继续提升。本文报告的收益来自固定 ratio 的 PS（`remaining=0.25`, `prefix=0.25`）；adaptive control 则是一个可进一步扩展的机制。
 
 **Future work：** 当前的 prefix 长度选择仍然依赖固定 ratio 或较简单的 EMA-based adaptive controller。一个很自然的方向是，把 prefix length selection 做得更智能，例如训练一个模型，直接根据任务特征和当前模型能力预测最优 prefix 长度，从而更稳定地把 prefix task rollout pass rate 控制在 50% 附近，并减少调整过程中的滞后和 overshoot。
+
+## 数学补充：为什么 50% 是最优点
+
+我们从第一性原理出发说明：对于 binary-reward RL，信息量最高的训练区间就是平衡的 rollout pass rate（`p ≈ 0.5`）。  
+这个结论可以从三个互补角度得到：entropy、GRPO advantage variance，以及 contrastive pair count。
+
+**Reader shortcut（先看结论）：**
+- 信息量 `H(p)`、GRPO 信号强度 `p(1-p)`、以及对比结构 `k(N-k)` 都在 `p=0.5` 处达到最大。
+- 偏斜任务（例如 `1/8` 或 `7/8`）并不是完全不能训练，但 sample efficiency 会明显更差。
+- Prefix Sampling 的核心作用，就是把这些偏斜任务往这个高信号区间推过去。
+
+#### 视角 1：Information Theory
+
+在只有 pass/fail 二元反馈的情况下，单个 rollout 能提供的信息量上界，就是 Bernoulli 随机变量的 Shannon entropy：
+
+```
+H(p) = -p·log₂(p) - (1-p)·log₂(1-p)
+```
+
+其中，`p` 表示某个任务的通过概率。
+
+对它求导：
+
+```
+dH/dp = -log₂(p) - 1/ln(2) + log₂(1-p) + 1/ln(2) = log₂((1-p)/p)
+```
+
+令 `dH/dp = 0`：
+
+```
+log₂((1-p)/p) = 0  →  (1-p)/p = 1  →  p = 0.5
+```
+
+再看二阶导：
+
+```
+d²H/dp² = -1/(p·ln2) - 1/((1-p)·ln2) < 0  for all p ∈ (0, 1)
+```
+
+因此，`H(p)` 在 `p = 0.5` 处取得唯一最大值。此时 `H(0.5)=1` bit，是二元反馈能提供的理论最大信息量；而在两端，`H(0)=H(1)=0`。  
+做个量级对比：`H(0.1)≈0.47`，`H(0.01)≈0.08`。  
+这说明 rollout pass rate 一旦偏斜，每个 rollout 能提供的信息量就会显著下降。
+
+#### 视角 2：GRPO 梯度信号强度
+
+Entropy 反映的是“信息有多少”，而 GRPO variance 反映的是“这些信息能多有效地变成参数更新”。  
+对于一个任务，如果共有 `N` 个 rollouts，奖励 `rᵢ ∈ {0,1}`，其中有 `k` 个通过，并令 `p = k/N`，那么 mean-centered advantage 为：
+
+```
+Aᵢ = rᵢ - r̄,  where r̄ = (1/N) Σⱼ rⱼ = k/N
+```
+
+于是：
+
+```
+Passing rollouts (rᵢ = 1):  Aᵢ = 1 - k/N = (N-k)/N
+Failing rollouts (rᵢ = 0):  Aᵢ = 0 - k/N = -k/N
+```
+
+对应的 policy gradient 形式为：
+
+```
+∇J ∝ Σᵢ Aᵢ · ∇log π(τᵢ)
+```
+
+梯度信号强弱取决于 advantage 的方差：
+
+```
+Var(A) = E[A²] - E[A]²
+```
+
+因为 `E[A]=0`，只需求 `E[A²]`：
+
+```
+E[A²] = p·(1-p)² + (1-p)·p² = p(1-p)·[(1-p) + p] = p(1-p)
+```
+
+因此：
+
+```
+Var(A) = p(1-p)
+```
+
+继续求最大值：
+
+```
+d[p(1-p)]/dp = 1 - 2p = 0  →  p = 0.5
+d²[p(1-p)]/dp² = -2 < 0  (confirmed maximum)
+```
+
+所以 `Var(A)` 在 `p=0.5` 时达到最大值 `0.25`。  
+参考一下几个点：`Var(0.1)=0.09`，`Var(0.01)=0.0099`，而 `p=1/8` 时，`Var=0.109`。  
+结论很直接：rollout pass rate 越偏，GRPO 中正负样本之间的对比就越弱，优化器能拿到的有效更新信号也越差。
+
+#### 视角 3：为什么这也会最大化 Credit Assignment
+
+平衡的 rollout pass rate 不仅能带来更强的梯度信号，也能最大化 **credit assignment** 的机会。  
+对于一个有 `N` 个 rollouts、其中 `k` 个成功的任务，成功与失败轨迹之间可形成的 contrastive pairs 数量为：
+
+```
+C(k) = k × (N - k)
+```
+
+配方法可得：
+
+```
+C(k) = k(N-k) = -(k - N/2)² + N²/4
+```
+
+这是一条开口向下的抛物线，因此在 `k = N/2` 处取得最大值，也就是 `p=0.5`。对于 `N=8`：
+
+| k（成功数） | Pass rate | C(k) = k(8-k) | Contrastive pairs |
+|---|---|---|---|
+| 0 | 0% | 0 | 没有正样本 |
+| 1 | 12.5% | 7 | 对比机会很有限 |
+| 2 | 25% | 12 | 有改善，但仍偏斜 |
+| 4 | 50% | 16 | **对比最丰富** |
+| 7 | 87.5% | 7 | 与 k=1 对称 |
+| 8 | 100% | 0 | 没有负样本 |
+
+当 `k=4` 时，总共有 16 个对比对，超过 `k=1` 时 7 个对比对的两倍。  
+这意味着 balanced rollout pass rate 能提供最丰富的 step-level credit assignment 结构，让模型更容易定位“究竟是哪一步导致了成功或失败”。
+
+#### 小结
+
+三个目标其实都指向同一个结论：entropy `H(p)`、GRPO variance `p(1-p)`，以及 contrastive pairs `k(N-k)`，都在 `p=0.5` 时达到最优。  
+因此，训练里追求的目标不应该只是“pass rate 不为 0”，而应该是“尽可能接近最有信息量的 50%”。Prefix Sampling 做的事情，就是把偏斜任务往这个目标点拉回去。
 
 ## Citation
 

@@ -10,14 +10,14 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 
 ![SWE-bench Verified Score](figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png)
 
-*Figure 1. SWE-bench Verified pass@1 score over training steps. PS reaches the baseline's peak score 1.8x faster and continues improving, ultimately reaching 0.298 vs the baseline's 0.273.*
+*Figure 1. SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's peak score 1.8x faster and continues improving, ultimately reaching 0.298 vs the baseline's 0.273.*
 
 Reinforcement learning (RL) for coding agents wastes a large fraction of compute on tasks with skewed rollout pass rates.
 When the model almost always fails or almost always succeeds, the gradient signal is weak and biased. **50% rollout pass rate maximizes gradient signal** — that's the target.
 
 **Prefix Sampling (PS) is the most direct way to hit that 50% target**: it replays trajectory prefixes to shift each task's effective rollout pass rate toward 50% — the information-theoretic optimum for binary-reward RL. For mostly-failing tasks, PS gives the model a head start from a rare successful trajectory. For mostly-passing tasks, it imposes a handicap from a rare failing trajectory. In both cases, biased signal is converted into balanced, high-information signal.
 
-On Qwen3-14B (SWE-bench, R2E_Gym), PS is **~2.07x faster end-to-end** to reach the same SWE-bench Verified pass@1 score (1.8x fewer steps × 1.15x faster per step), and ultimately achieves a higher final pass@1 score: **0.298** vs **0.273** for baseline — a quality improvement with no trade-off.
+On Qwen3-14B (SWE-bench, R2E_Gym), averaged over 3 runs, PS is **~2.07x faster end-to-end** to reach the same SWE-bench Verified pass@1 score (1.8x fewer steps × 1.15x faster per step), and ultimately achieves a higher final pass@1 score: **0.298** vs **0.273** for baseline — a quality improvement with no trade-off.
 
 ## Most RL Tasks Have the Wrong Pass Rate
 
@@ -39,130 +39,13 @@ In both cases, low-quality biased signal is turned into balanced, information-ri
 
 ## Why 50% Pass Rate Is the Optimal Target
 
-We show from first principles that for binary-reward RL, the most informative regime is a balanced rollout pass rate (`p ≈ 0.5`).
-We support this from three complementary views: entropy, GRPO advantage variance, and contrastive pair count.
+The key conclusion comes first: for binary-reward RL, **50% rollout pass rate is the optimal target**. It maximizes information, maximizes GRPO signal strength, and gives the richest contrastive structure for credit assignment.  
+We give the full mathematical argument later in the post, right before `Citation`.
 
 **Reader shortcut (conclusion first):**
 - Information (`H(p)`), GRPO signal strength (`p(1-p)`), and contrastive structure (`k(N-k)`) all peak at `p=0.5`.
 - Skewed tasks (for example `1/8` or `7/8`) still train, but with substantially lower sample efficiency.
 - Prefix Sampling improves efficiency by shifting skewed tasks toward this high-signal regime.
-
-#### Perspective 1: Information Theory
-
-With binary pass/fail feedback, per-rollout information is bounded by the entropy of a Bernoulli random variable:
-
-```
-H(p) = -p·log₂(p) - (1-p)·log₂(1-p)
-```
-
-where `p` is the pass probability for a task.
-
-Take derivatives:
-
-```
-dH/dp = -log₂(p) - 1/ln(2) + log₂(1-p) + 1/ln(2) = log₂((1-p)/p)
-```
-
-Set `dH/dp = 0`:
-
-```
-log₂((1-p)/p) = 0  →  (1-p)/p = 1  →  p = 0.5
-```
-
-Second derivative:
-
-```
-d²H/dp² = -1/(p·ln2) - 1/((1-p)·ln2) < 0  for all p ∈ (0, 1)
-```
-
-So `H(p)` is uniquely maximized at `p = 0.5`, with `H(0.5)=1` bit (the binary maximum), while `H(0)=H(1)=0`.  
-Concrete scale: `H(0.1)≈0.47`, `H(0.01)≈0.08`.  
-Implication: skewed rollout pass rates waste information per rollout.
-
-#### Perspective 2: GRPO Gradient Signal Strength
-
-Entropy quantifies available information; GRPO variance quantifies update strength.  
-For a task with `N` rollouts, rewards `rᵢ ∈ {0,1}`, `k` passes, and `p = k/N`, mean-centered advantage is:
-
-```
-Aᵢ = rᵢ - r̄,  where r̄ = (1/N) Σⱼ rⱼ = k/N
-```
-
-Hence:
-
-```
-Passing rollouts (rᵢ = 1):  Aᵢ = 1 - k/N = (N-k)/N
-Failing rollouts (rᵢ = 0):  Aᵢ = 0 - k/N = -k/N
-```
-
-Policy gradient:
-
-```
-∇J ∝ Σᵢ Aᵢ · ∇log π(τᵢ)
-```
-
-Signal strength is tied to advantage variance:
-
-```
-Var(A) = E[A²] - E[A]²
-```
-
-Since `E[A]=0`, compute `E[A²]`:
-
-```
-E[A²] = p·(1-p)² + (1-p)·p² = p(1-p)·[(1-p) + p] = p(1-p)
-```
-
-Therefore:
-
-```
-Var(A) = p(1-p)
-```
-
-Maximization:
-
-```
-d[p(1-p)]/dp = 1 - 2p = 0  →  p = 0.5
-d²[p(1-p)]/dp² = -2 < 0  (confirmed maximum)
-```
-
-So `Var(A)` is maximized at `p=0.5` with value `0.25`.  
-Reference points: `Var(0.1)=0.09`, `Var(0.01)=0.0099`, and for `p=1/8`, `Var=0.109`.  
-Implication: as rollout pass rate becomes skewed, GRPO contrast weakens sharply.
-
-#### Why This Also Maximizes Credit Assignment
-
-Balanced rollout pass rates also maximize credit-assignment opportunities.  
-With `N` rollouts and `k` successes, the number of success-failure contrastive pairs is:
-
-```
-C(k) = k × (N - k)
-```
-
-Complete the square:
-
-```
-C(k) = k(N-k) = -(k - N/2)² + N²/4
-```
-
-This is a downward parabola with vertex at `k = N/2` (equivalently `p=0.5`). For `N=8`:
-
-| k (passes) | Pass rate | C(k) = k(8-k) | Contrastive pairs |
-|---|---|---|---|
-| 0 | 0% | 0 | No positive examples |
-| 1 | 12.5% | 7 | Limited contrast |
-| 2 | 25% | 12 | Better but skewed |
-| 4 | 50% | 16 | **Maximum contrast** |
-| 7 | 87.5% | 7 | Symmetric to k=1 |
-| 8 | 100% | 0 | No negative examples |
-
-At `k=4`, there are 16 pairs, more than 2x the 7 pairs at `k=1`.  
-Implication: balanced rollout pass rates provide the richest structure for step-level credit assignment.
-
-#### Summary
-
-All three objectives peak at balance: entropy `H(p)`, GRPO variance `p(1-p)`, and contrastive pairs `k(N-k)` are all maximized at `p=0.5`.  
-So the training target is not just “nonzero rollout pass rate,” but “maximally informative rollout pass rate.” Prefix Sampling uses replayed prefixes to move skewed tasks toward that regime.
 
 ## How Prefix Sampling Steers Tasks to 50%
 
@@ -342,6 +225,133 @@ Instead, it targets the large middle ground of tasks that already produce gradie
 Our experiments on Qwen3-14B with R2E_Gym tasks show that PS matches the baseline's peak score with **1.55x better step-efficiency** and **~1.15x faster wall-clock time per step** — an overall **~1.78x end-to-end speedup**, while continuing to improve beyond the baseline's convergence point. The reported gains in this post come from fixed-ratio PS (`remaining=0.25`, `prefix=0.25`); adaptive control is included as an extensible mechanism.
 
 **Future work:** The current prefix length selection uses fixed ratios or a simple EMA-based adaptive controller. A promising direction is better prefix length selection — for example, learning a model that predicts the optimal prefix length for a given task and current model capability, directly targeting 50% prefix task rollout pass rate with fewer adjustment steps and less overshoot.
+
+## Mathematical Appendix: Why 50% Is Optimal
+
+We show from first principles that for binary-reward RL, the most informative regime is a balanced rollout pass rate (`p ≈ 0.5`).
+We support this from three complementary views: entropy, GRPO advantage variance, and contrastive pair count.
+
+**Reader shortcut (conclusion first):**
+- Information (`H(p)`), GRPO signal strength (`p(1-p)`), and contrastive structure (`k(N-k)`) all peak at `p=0.5`.
+- Skewed tasks (for example `1/8` or `7/8`) still train, but with substantially lower sample efficiency.
+- Prefix Sampling improves efficiency by shifting skewed tasks toward this high-signal regime.
+
+#### Perspective 1: Information Theory
+
+With binary pass/fail feedback, per-rollout information is bounded by the entropy of a Bernoulli random variable:
+
+```
+H(p) = -p·log₂(p) - (1-p)·log₂(1-p)
+```
+
+where `p` is the pass probability for a task.
+
+Take derivatives:
+
+```
+dH/dp = -log₂(p) - 1/ln(2) + log₂(1-p) + 1/ln(2) = log₂((1-p)/p)
+```
+
+Set `dH/dp = 0`:
+
+```
+log₂((1-p)/p) = 0  →  (1-p)/p = 1  →  p = 0.5
+```
+
+Second derivative:
+
+```
+d²H/dp² = -1/(p·ln2) - 1/((1-p)·ln2) < 0  for all p ∈ (0, 1)
+```
+
+So `H(p)` is uniquely maximized at `p = 0.5`, with `H(0.5)=1` bit (the binary maximum), while `H(0)=H(1)=0`.  
+Concrete scale: `H(0.1)≈0.47`, `H(0.01)≈0.08`.  
+Implication: skewed rollout pass rates waste information per rollout.
+
+#### Perspective 2: GRPO Gradient Signal Strength
+
+Entropy quantifies available information; GRPO variance quantifies update strength.  
+For a task with `N` rollouts, rewards `rᵢ ∈ {0,1}`, `k` passes, and `p = k/N`, mean-centered advantage is:
+
+```
+Aᵢ = rᵢ - r̄,  where r̄ = (1/N) Σⱼ rⱼ = k/N
+```
+
+Hence:
+
+```
+Passing rollouts (rᵢ = 1):  Aᵢ = 1 - k/N = (N-k)/N
+Failing rollouts (rᵢ = 0):  Aᵢ = 0 - k/N = -k/N
+```
+
+Policy gradient:
+
+```
+∇J ∝ Σᵢ Aᵢ · ∇log π(τᵢ)
+```
+
+Signal strength is tied to advantage variance:
+
+```
+Var(A) = E[A²] - E[A]²
+```
+
+Since `E[A]=0`, compute `E[A²]`:
+
+```
+E[A²] = p·(1-p)² + (1-p)·p² = p(1-p)·[(1-p) + p] = p(1-p)
+```
+
+Therefore:
+
+```
+Var(A) = p(1-p)
+```
+
+Maximization:
+
+```
+d[p(1-p)]/dp = 1 - 2p = 0  →  p = 0.5
+d²[p(1-p)]/dp² = -2 < 0  (confirmed maximum)
+```
+
+So `Var(A)` is maximized at `p=0.5` with value `0.25`.  
+Reference points: `Var(0.1)=0.09`, `Var(0.01)=0.0099`, and for `p=1/8`, `Var=0.109`.  
+Implication: as rollout pass rate becomes skewed, GRPO contrast weakens sharply.
+
+#### Why This Also Maximizes Credit Assignment
+
+Balanced rollout pass rates also maximize credit-assignment opportunities.  
+With `N` rollouts and `k` successes, the number of success-failure contrastive pairs is:
+
+```
+C(k) = k × (N - k)
+```
+
+Complete the square:
+
+```
+C(k) = k(N-k) = -(k - N/2)² + N²/4
+```
+
+This is a downward parabola with vertex at `k = N/2` (equivalently `p=0.5`). For `N=8`:
+
+| k (passes) | Pass rate | C(k) = k(8-k) | Contrastive pairs |
+|---|---|---|---|
+| 0 | 0% | 0 | No positive examples |
+| 1 | 12.5% | 7 | Limited contrast |
+| 2 | 25% | 12 | Better but skewed |
+| 4 | 50% | 16 | **Maximum contrast** |
+| 7 | 87.5% | 7 | Symmetric to k=1 |
+| 8 | 100% | 0 | No negative examples |
+
+At `k=4`, there are 16 pairs, more than 2x the 7 pairs at `k=1`.  
+Implication: balanced rollout pass rates provide the richest structure for step-level credit assignment.
+
+#### Summary
+
+All three objectives peak at balance: entropy `H(p)`, GRPO variance `p(1-p)`, and contrastive pairs `k(N-k)` are all maximized at `p=0.5`.  
+So the training target is not just “nonzero rollout pass rate,” but “maximally informative rollout pass rate.” Prefix Sampling uses replayed prefixes to move skewed tasks toward that regime.
 
 ## Citation
 
