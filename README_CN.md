@@ -10,7 +10,7 @@
 
 | 标题 | 介绍 | 链接 |
 | --- | --- | --- |
-| Prefix Sampling | 面向 Agentic RL 效率优化的博客 | [中文](research/prefix-sampling/README_CN.md) |
+| Prefix Sampling | 面向 Agentic RL 效率优化的博客 | [博客](research/prefix-sampling/README_CN.md) |
 | Qianfan-VL | 视觉语言模型系列 | [技术报告](https://github.com/baidubce/Qianfan-VL/blob/main/docs/qianfan_vl_report_comp.pdf) \| [项目页](https://baidubce.github.io/Qianfan-VL/) \| [GitHub](https://github.com/baidubce/Qianfan-VL) |
 
 ## 最新动态
