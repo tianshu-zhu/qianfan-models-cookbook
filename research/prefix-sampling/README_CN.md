@@ -1,6 +1,6 @@
 # Prefix Sampling：以 50% rollout pass rate 为目标，提升 agentic RL 训练效率
 
-Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingnan Gu*, Daxiang Dong*, Jianmin Wu*
+Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxin Zhang, Jingnan Gu*, Daxiang Dong*, Jianmin Wu*
 
 *通讯作者
 
@@ -8,18 +8,23 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 
 ## TL;DR
 
-![SWE-bench Verified Score](figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png)
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" style="width: 50%;" alt="Qwen3-14B SWE-bench Verified Comparison">
+  <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" style="width: 50%;" alt="Qwen3-32B SWE-bench Verified Comparison">
+</div>
 
-*图 1. SWE-bench Verified pass@1 分数随训练步数变化，结果为 3 次实验取平均。PS 以 1.8x 更少的训练步数达到 baseline 的峰值分数，并继续提升，最终达到 0.298，而 baseline 为 0.273。*
+*图 1. 左图：Qwen3-14B 的 SWE-bench Verified pass@1 分数随训练步数变化，结果为 3 次实验取平均。PS 以 1.8x 更少的训练步数达到 baseline 的峰值分数，并最终达到 0.298，对比 baseline 的 0.273。右图：Qwen3-32B 的 SWE-bench Verified pass@1 分数随训练步数变化，结果同样为 3 次实验取平均。PS 在 step 290 达到 baseline 的最佳分数 0.422，而 baseline 在 step 410 才达到相同分数。*
 
 面向 coding agent 的强化学习（RL）会在大量 rollout pass rate 偏斜的任务上浪费不少算力。  
 当模型几乎总是失败，或者几乎总是成功时，梯度信号都会变得很弱，而且带有明显偏置。**50% 的 rollout pass rate 可以最大化梯度信号**，这正是我们要追求的目标。
 
 **Prefix Sampling（PS）是把 rollout pass rate 拉向 50% 的一种直接方法：** 它通过重放 trajectory prefix，把每个任务的有效 rollout pass rate 推向 50%，也就是 binary-reward RL 在信息论意义上的最优点。对于大多数 rollout 都失败的任务，PS 会从一条罕见的成功轨迹中给模型一个 head start；对于大多数 rollout 都成功的任务，PS 会从一条罕见的失败轨迹中给模型一个 handicap。两种情况下，本来带偏的低质量信号都会被转化为更平衡、信息量更高的训练信号。
 
-在 Qwen3-14B（SWE-bench, R2E_Gym）上，基于 3 次实验取平均，PS 在达到相同 SWE-bench Verified pass@1 分数时，端到端速度提升约 **2.07x**（1.8x 更少训练步数 × 1.15x 更快单步速度），并且最终的 pass@1 分数也更高：**0.298** 对比 baseline 的 **0.273**。也就是说，它不仅更快，而且最终效果也更好。
+在 Qwen3-14B（SWE-bench, R2E_Gym）上，基于 3 次实验取平均，PS 在达到相同 SWE-bench Verified pass@1 分数时，端到端速度提升约 **2.07x**（1.80x 更少训练步数 × 1.15x 更快单步速度），并且最终的 pass@1 分数也更高：**0.298** 对比 baseline 的 **0.273**。也就是说，它不仅更快，而且最终效果也更好。
 
-## 大多数 RL 任务的 Pass Rate 都不对
+在 Qwen3-32B（SWE-bench, R2E_Gym）上，基于 3 次实验取平均，PS 在达到相同 SWE-bench Verified pass@1 分数时，端到端速度提升约 **1.54x**（**1.40x** 更少训练步数 × **1.10x** 更快单步速度），并且**不牺牲最终性能**。
+
+## 大多数 RL 任务的 Rollout Pass Rate 都不对
 
 在我们的 SWE-bench RL 训练设置中（Qwen3-14B、每个任务 `N=8` 个 rollouts、`batch_size=64`），任务大致会落在几类学习效率完全不同的区间里：
 
@@ -37,7 +42,7 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 对于大多数失败的任务，用一条罕见成功轨迹的 prefix 给模型一个 head start，把 rollout pass rate 往 50% 推；对于大多数成功的任务，则用一条罕见失败轨迹的 prefix 给模型加 handicap，让成功重新变得不那么轻松。  
 这样一来，原本低质量、带偏的训练信号，就能转化成更平衡、信息量更高的信号。
 
-## 为什么 50% Pass Rate 是最优目标
+## 为什么 50% Rollout Pass Rate 是最优目标
 
 先给结论：对于 binary-reward RL，**50% rollout pass rate 就是最优目标**。它同时最大化信息量、最大化 GRPO 信号强度，并提供最丰富的对比式 credit assignment 结构。  
 完整的数学证明我们放在文末，紧挨着 `Citation` 之前。
@@ -47,7 +52,7 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 - 偏斜任务（例如 `1/8` 或 `7/8`）并不是完全不能训练，但 sample efficiency 会明显更差。
 - Prefix Sampling 的核心作用，就是把这些偏斜任务往这个高信号区间推过去。
 
-## Prefix Sampling 是怎么工作的
+## Prefix Sampling 是怎么把 Rollout Pass Rate 调整到50%的
 
 ![Prefix Sampling Workflow](figures/workflow.png)
 
@@ -129,7 +134,7 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 ### Adaptive Prefix（可选）
 
-*注意：本文中 Qwen3-14B 的实验结果使用的是固定 ratio；adaptive prefix 并不是达到本文速度提升结果的必要条件。*
+*注意：本文中的 Qwen3-14B 实验使用固定 ratio；下面新增的 Qwen3-32B 实验则启用了 adaptive prefix。*
 
 固定 ratio 虽然已经足够有效，但随着模型能力提升，最优 prefix 长度也会不断变化。某个 ratio 在 step 10 时也许能把 prefix task rollout pass rate 调到 50%，但到了 step 100，模型可能已经更擅长从 prefix 往后接，这时同样的 ratio 可能会让通过率变成 80%。
 
@@ -149,69 +154,85 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 我们在完全相同的基础设施和超参数设置下，将 Prefix Sampling 与 baseline 进行了对比。baseline 采用的是 [DeepSWE](https://www.together.ai/blog/deepswe) 的训练设定，它是面向 SWE-bench coding agent RL 的一个强基线：使用 GRPO，并通过 rejection sampling 去掉 all-fail 和 all-pass 任务。
 
+本文涉及的 14B 和 32B 两组实验，共享相同的核心训练配方：`batch_size=64`、`max_prompt_length=4096`、每个任务 `8` 个 rollouts、训练集为 `R2E_Gym_Subset`、验证集为 `SWE_Bench_Verified_0726`。二者的主要差异在于 `max_response_length`（14B 为 `32768`，32B 为 `65536`）、`agent.max_steps`（`50` vs `100`），以及 prefix 控制方式（14B 使用 fixed ratios，32B 启用 adaptive prefix）。
+
+### 实验配置
+
+#### Qwen3-14B
+
 | | Baseline | Prefix Sampling |
 |---|---|---|
 | Model | Qwen3-14B | Qwen3-14B |
 | Task | R2E_Gym_Subset | R2E_Gym_Subset |
 | Rollouts per task | 8 | 8 |
 | Batch size | 64 | 64 |
+| Max prompt length | 4096 | 4096 |
+| Max response length | 32768 | 32768 |
+| Agent max steps | 50 | 50 |
 | Rejection sampling | Yes (0%, 100%) | Yes (0%, 100%) |
 | PS thresholds | — | low=0.3, high=0.7 |
-| PS ratios | — | remaining=0.25, prefix=0.25 |
+| PS control | — | fixed ratios |
+| Too-hard remaining ratio | — | 0.75 |
+| Too-easy prefix ratio | — | 0.25 |
+
+#### Qwen3-32B
+
+| | Baseline | Prefix Sampling |
+|---|---|---|
+| Model | Qwen3-32B | Qwen3-32B |
+| Task | R2E_Gym_Subset | R2E_Gym_Subset |
+| Rollouts per task | 8 | 8 |
+| Batch size | 64 | 64 |
+| Max prompt length | 4096 | 4096 |
+| Max response length | 65536 | 65536 |
+| Agent max steps | 100 | 100 |
+| Rejection sampling | Yes (0%, 100%) | Yes (0%, 100%) |
+| PS thresholds | — | low=0.3, high=0.7 |
+| PS control | — | adaptive prefix |
+| Initial too-hard remaining ratio | — | 0.45 |
+| Initial too-easy prefix ratio | — | 0.55 |
+| Too-easy prefix cap | — | 30 |
 
 ### Training Efficiency：收敛更快，成本更低
 
+<div style="display: flex; gap: 16px; margin-bottom: 12px;">
+  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Qwen3-14B Training Score Comparison">
+  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Qwen3-14B Step Time Comparison">
+</div>
 <div style="display: flex; gap: 16px;">
-  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Pass Rate Comparison">
-  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Step Time Comparison">
+  <img src="figures/pass_rate_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Training Score Comparison">
+  <img src="figures/step_time_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Step Time Comparison">
 </div>
 
-*图 3. 左图：不含 prefix 的训练任务，其 rollout pass rate 随训练步数变化。水平线表示 baseline 的收敛分数，PS 以 1.55x 更快的速度达到该分数，并继续提升。右图：每个训练 step 的平均 wall-clock 时间（秒）。*
+*图 3. 第一行：Qwen3-14B。左图：不含 prefix 的训练任务，其 rollout pass rate 随训练步数变化。水平线表示 baseline 的收敛分数，PS 以 1.55x 更快的速度达到该分数，并继续提升。右图：每个训练 step 的平均 wall-clock 时间（`1398s` vs `1601s`）。第二行：Qwen3-32B。左图：训练 score 对比，PS 在 step `282` 达到 baseline 等效 score，而 baseline 需要 `395`。右图：每个训练 step 的平均 wall-clock 时间（`2150s` vs `2358s`）。*
 
-PS 和 baseline 最终达到的 peak rollout pass rate 基本相同（约 `0.39`），说明这种加速并不是靠牺牲最终性能换来的。  
-在左图中，水平线对应 baseline 的收敛分数。PS 只用了 **201 steps** 就达到同样水平，而 baseline 需要 **312 steps**，也就是 **1.55x 的 no-prefix training sample step-efficiency 提升**。  
-而且，PS 到达这一点之后还在继续提升。
-
-但故事不只是“步数更少”。  
-右图显示，PS 的单步速度也更快，平均 **~1.15x faster per step**（`1398s` 对比 `1601s`）。  
-这看起来也许有些反直觉，因为 PS 明明增加了 prefix replay 这部分工作。但 replay 的 prefix steps 是确定性执行的，不需要额外的 LLM inference，因此会比从头生成快得多。  
-这部分省下来的推理开销，足以覆盖管理 prefix-task queue 的额外成本。
-
-把这两个因素合起来，PS 在达到相同 rollout pass rate 时实现了整体 **~1.78x 的端到端加速**：`78h` 对比 `139h` 的 wall-clock 时间。
+这个模式在两种模型规模上都一致。对于 Qwen3-14B，PS 在 **201** steps 达到 baseline 的收敛水平，而 baseline 需要 **312** steps，也就是 **1.55x 的 step-efficiency 提升**；同时，PS 的单步训练速度也快约 **1.15x**，最终带来 **~1.78x 的端到端加速**（`78h` vs `139h`）。对于 Qwen3-32B，PS 在 **step 282** 达到 baseline 等效训练 score，而 baseline 需要 **395**，对应 **1.40x 的 step-efficiency 提升**；同时，它的单步速度也快约 **1.10x**，合起来大致对应 **~1.54x 的端到端加速**。
 
 ### 更高质量、也更多的有效训练样本
 
+<div style="display: flex; gap: 16px; margin-bottom: 12px;">
+  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Qwen3-14B Prefix Task Pass Rate">
+  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Qwen3-14B Valid Samples Comparison">
+</div>
 <div style="display: flex; gap: 16px;">
-  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Valid Samples Comparison">
+  <img src="figures/rerollout_pass_rate_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Prefix Task Pass Rate">
+  <img src="figures/valid_samples_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Valid Samples Comparison">
 </div>
 
-*图 4. 左图：仅统计 prefix tasks 的 rollout pass rate（目标为 0.5）。均值为 0.529，标准差为 0.078，说明 prefix 长度校准成功把任务维持在信息论最优区间附近。右图：每个 batch 中有效训练任务的数量（即同时包含 pass/fail rollouts 的任务）。*
+*图 4. 第一行：Qwen3-14B。左图：仅统计 prefix tasks 的 rollout pass rate（目标为 `0.5`），均值 `0.529`、标准差 `0.078`。右图：每个 batch 的有效训练任务数量（`solve_partial`），从 `25.9` 提升到 `36.5`。第二行：Qwen3-32B。左图：在 adaptive prefix 控制下，prefix-task rollout pass rate 稳定围绕 `0.5` 目标波动。右图：每个 batch 的有效训练任务数量从 `30.8` 提升到 `39.0`。*
 
-效率提升来自把低质量训练信号变成更平衡、信息量更高的训练信号。  
-左图就是最核心的证据：只统计带有 prefix guidance 的 prefix tasks，其 rollout pass rate 在整个训练过程中都稳定在 0.5 附近（均值 `0.529`，标准差 `0.078`）。  
-这说明 prefix-length calibration 的确把任务难度稳定地推到了信息论上的 sweet spot。
-
-右图反映的是数量上的收益。  
-`solve_partial` 指标统计的是每个 batch 中，同时包含 pass/fail rollouts 的任务数，也就是那些真正能产生有效 GRPO 信号的任务。  
-PS 平均每个 batch 有 **36.5** 个有效任务，而 baseline 只有 **25.9** 个，相当于每步训练可用的高价值样本增加了 **41%**。
-
-但提升不只是数量上的。  
-那些原本 rollout pass rate 严重偏斜的任务（例如 `1/8` 或 `7/8`），原本只能贡献微弱且偏置很大的梯度信号；经过 prefix replay 之后，它们会被转化成接近 50% rollout pass rate 的 balanced partial-pass 任务。  
-这些样本之所以**更有信息量**，是因为它们的 rollout pass rate 集中在信息论最优点附近，而不是挤在边缘极端。  
-“41% 更多样本”加上“单样本信息价值更高”这两个因素，共同推动了约 **1.55x** 的 step-efficiency 提升。
+效率提升来自把偏斜且低质量的训练信号，转化成更平衡、信息量更高的训练信号。对于 Qwen3-14B，prefix-task rollout pass rate 在整个训练过程中都稳定靠近 0.5，PS 也把每个 batch 的有效训练任务数从 **25.9** 提升到 **36.5**，也就是 **41%** 的增幅。对于 Qwen3-32B，在 adaptive prefix 控制下同样成立：prefix-task rollout pass rate 仍然稳定围绕 **0.5**，而每个 batch 的有效训练任务数从 **30.8** 提升到 **39.0**，也就是每步能拿到 **1.27x 更多** 的高价值样本。两组结果都说明，PS 同时提升了训练样本的数量和信息密度。
 
 ### 更高的 Entropy，更好的 Exploration
 
-<img src="figures/entropy_comparison.png" style="width: 50%;" alt="Entropy Comparison">
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <img src="figures/entropy_comparison.png" style="width: 50%;" alt="Qwen3-14B Entropy Comparison">
+  <img src="figures/entropy_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Entropy Comparison">
+</div>
 
-*图 5. 输出 entropy 随训练步数变化。PS 在收敛之前始终维持比 baseline 更高的 entropy，说明探索更健康。竖线标出两者的收敛步数（201 与 312）。*
+*图 5. 左图：Qwen3-14B 的输出 entropy 随训练步数变化；PS 在收敛前维持更高 entropy，收敛标记分别为 steps `201` 和 `312`。右图：Qwen3-32B 的输出 entropy 随训练步数变化；PS 同样在收敛前维持更高 entropy，收敛标记分别为 steps `282` 和 `395`。*
 
-Entropy 描述的是模型输出分布的多样性。  
-更高的 entropy 通常意味着更多 exploration；而 entropy collapse 往往意味着策略已经变得过于确定。  
-在收敛前，PS 一直维持比 baseline 更高的 entropy，这对 RL 训练是有益的，因为它能支持更充分的探索。  
-之后，两条曲线会逐步收敛到相近的 entropy 水平，说明 PS 不会导致过早的 entropy collapse。  
-图中的竖线（steps 201 和 312）也表明，PS 是在维持更健康探索状态的同时，更早达到相同最终水平的。
+Entropy 在两种模型上讲的是同一个故事：PS 在大部分收敛前阶段都维持了更高的 entropy，从而支持更健康的 exploration，同时又不会导致过早 collapse。无论是 Qwen3-14B 还是 Qwen3-32B，最终两条 entropy 曲线都会逐渐接近，说明 PS 是在更有效探索的同时，更早到达相似的最终训练状态。
 
 ## Takeaways
 
@@ -227,7 +248,7 @@ PS 并不试图拯救完全无解或已经完全无难度的任务，这些任�
 3. **Adaptive prefix control：** 随着模型能力变化，自动重新校准 prefix 长度，持续维持 50% 目标，而不需要手动反复调参。
 4. **Dynamic on-policy prefix：** 使用当前训练步中模型自己最新生成的轨迹，保证 prefix tasks 始终匹配模型当前能力，避免 off-policy staleness。
 
-我们在 Qwen3-14B + R2E_Gym 上的实验表明，PS 以 **1.55x 更好的 step-efficiency** 和 **~1.15x 更快的单步 wall-clock 时间** 达到 baseline 的峰值分数，整体实现 **~1.78x 的端到端加速**，并且在 baseline 收敛后仍继续提升。本文报告的收益来自固定 ratio 的 PS（`remaining=0.25`, `prefix=0.25`）；adaptive control 则是一个可进一步扩展的机制。
+我们现在有两组互补结果：一组是 **fixed-ratio 的 Qwen3-14B**，另一组是 **adaptive-prefix 的 Qwen3-32B**。在 Qwen3-14B 上，PS 带来 **1.55x 的 step-efficiency 提升** 和 **~1.15x 更快的单步 wall-clock 时间**，对应 **~1.78x 的端到端加速**。在 Qwen3-32B 上，PS 则以 **1.40x 更少的训练步数** 达到相同的最佳 SWE-bench Verified pass@1 分数，同时单步速度还快约 **1.10x**。这说明 Prefix Sampling 无论在 fixed ratios 还是 adaptive prefix 设置下，都能稳定提升训练效率。
 
 **Future work：** 当前的 prefix 长度选择仍然依赖固定 ratio 或较简单的 EMA-based adaptive controller。一个很自然的方向是，把 prefix length selection 做得更智能，例如训练一个模型，直接根据任务特征和当前模型能力预测最优 prefix 长度，从而更稳定地把 prefix task rollout pass rate 控制在 50% 附近，并减少调整过程中的滞后和 overshoot。
 
@@ -364,7 +385,7 @@ C(k) = k(N-k) = -(k - N/2)² + N²/4
 @misc{zhu2026prefixsampling,
   title = {Prefix Sampling: Agentic RL with Prefix Guidance},
   url = {TBD},
-  author = {Tianshu Zhu and Wenyu Zhang and Lun Tian and Haotian Zhao and Ruijie Xu and Jingnan Gu and Daxiang Dong and Jianmin Wu},
+  author = {Tianshu Zhu and Wenyu Zhang and Lun Tian and Haotian Zhao and Haifeng Zhang and Ruijie Xu and Jingnan Gu and Daxiang Dong and Jianmin Wu},
   year = {2026},
   month = {Mar},
 }

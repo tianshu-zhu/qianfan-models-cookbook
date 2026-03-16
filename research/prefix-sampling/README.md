@@ -1,6 +1,6 @@
 # Prefix Sampling: targeting 50% rollout pass rate for more efficient agentic RL
 
-Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingnan Gu*, Daxiang Dong*, Jianmin Wu*
+Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxin Zhang, Jingnan Gu*, Daxiang Dong*, Jianmin Wu*
 
 *Corresponding authors
 
@@ -8,18 +8,23 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Ruijie Xu, Yuxin Zhang, Jingna
 
 ## TL;DR
 
-![SWE-bench Verified Score](figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png)
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" style="width: 50%;" alt="Qwen3-14B SWE-bench Verified Comparison">
+  <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" style="width: 50%;" alt="Qwen3-32B SWE-bench Verified Comparison">
+</div>
 
-*Figure 1. SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's peak score 1.8x faster and continues improving, ultimately reaching 0.298 vs the baseline's 0.273.*
+*Figure 1. Left: Qwen3-14B SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's peak score 1.8x faster and ultimately reaches 0.298 vs 0.273. Right: Qwen3-32B SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's best score of 0.422 at step 290, while baseline reaches the same score at step 410.*
 
 Reinforcement learning (RL) for coding agents wastes a large fraction of compute on tasks with skewed rollout pass rates.
 When the model almost always fails or almost always succeeds, the gradient signal is weak and biased. **50% rollout pass rate maximizes gradient signal** — that's the target.
 
 **Prefix Sampling (PS) is the most direct way to hit that 50% target**: it replays trajectory prefixes to shift each task's effective rollout pass rate toward 50% — the information-theoretic optimum for binary-reward RL. For mostly-failing tasks, PS gives the model a head start from a rare successful trajectory. For mostly-passing tasks, it imposes a handicap from a rare failing trajectory. In both cases, biased signal is converted into balanced, high-information signal.
 
-On Qwen3-14B (SWE-bench, R2E_Gym), averaged over 3 runs, PS is **~2.07x faster end-to-end** to reach the same SWE-bench Verified pass@1 score (1.8x fewer steps × 1.15x faster per step), and ultimately achieves a higher final pass@1 score: **0.298** vs **0.273** for baseline — a quality improvement with no trade-off.
+On Qwen3-14B (SWE-bench, R2E_Gym), averaged over 3 runs, PS is **~2.07x faster end-to-end** to reach the same SWE-bench Verified pass@1 score (1.80x fewer steps × 1.15x faster per step), and ultimately achieves a higher final pass@1 score: **0.298** vs **0.273** for baseline — a quality improvement with no trade-off.
 
-## Most RL Tasks Have the Wrong Pass Rate
+On Qwen3-32B (SWE-bench, R2E_Gym), averaged over 3 runs, PS is **~1.54x faster end-to-end** to reach the same SWE-bench Verified pass@1 score (**1.40x** fewer steps × **1.10x** faster per step), **without sacrificing performance**.
+
+## Most RL Tasks Have the Wrong Rollout Pass Rate
 
 In our SWE-bench RL training setup (Qwen3-14B, N=8 rollouts per task, batch_size=64), we observe that tasks fall into several categories with very different learning efficiency:
 
@@ -37,7 +42,7 @@ But we *can* recycle heavily skewed tasks (for example 1/8 or 7/8 rollout pass r
 For mostly failing tasks, replay a rare successful prefix as a head start, pushing rollout pass rate toward 50%. For mostly passing tasks, replay a rare failing prefix as a handicap, making success non-trivial again.  
 In both cases, low-quality biased signal is turned into balanced, information-rich signal.
 
-## Why 50% Pass Rate Is the Optimal Target
+## Why 50% Rollout Pass Rate Is the Optimal Target
 
 The key conclusion comes first: for binary-reward RL, **50% rollout pass rate is the optimal target**. It maximizes information, maximizes GRPO signal strength, and gives the richest contrastive structure for credit assignment.  
 We give the full mathematical argument later in the post, right before `Citation`.
@@ -125,7 +130,7 @@ With masking, the training objective remains pure RL: the model is only rewarded
 
 ### Adaptive Prefix (Optional)
 
-*Note: the Qwen3-14B experiments above use fixed ratios — adaptive prefix is not required to achieve the reported speedups.*
+*Note: the Qwen3-14B experiments in this post use fixed ratios, while the Qwen3-32B experiments added below enable adaptive prefix.*
 
 Fixed ratios work reasonably well, but the optimal prefix length changes as the model improves. A ratio that produces 50% prefix task rollout pass rate at step 10 may produce 80% at step 100 (the model got better at completing from prefixes).
 
@@ -144,69 +149,85 @@ The cooldown is important: because the EMA is smoothed over multiple steps, a ra
 
 We compare Prefix Sampling against a baseline on identical infrastructure and hyperparameters. The baseline follows the [DeepSWE](https://www.together.ai/blog/deepswe) training setup — a state-of-the-art RL approach for training coding agents on SWE-bench that uses GRPO with rejection sampling to filter out all-fail and all-pass tasks.
 
+Across the experiments reported here, the Qwen3-14B and Qwen3-32B setups share the same core recipe: `batch_size=64`, `max_prompt_length=4096`, `8` rollouts per task, training on `R2E_Gym_Subset`, and evaluation on `SWE_Bench_Verified_0726`. The main differences are `max_response_length` (`32768` for 14B vs `65536` for 32B), `agent.max_steps` (`50` vs `100`), and prefix control (`fixed ratios` for 14B vs `adaptive prefix` for 32B).
+
+### Experiment Setup
+
+#### Qwen3-14B
+
 | | Baseline | Prefix Sampling |
 |---|---|---|
 | Model | Qwen3-14B | Qwen3-14B |
 | Task | R2E_Gym_Subset | R2E_Gym_Subset |
 | Rollouts per task | 8 | 8 |
 | Batch size | 64 | 64 |
+| Max prompt length | 4096 | 4096 |
+| Max response length | 32768 | 32768 |
+| Agent max steps | 50 | 50 |
 | Rejection sampling | Yes (0%, 100%) | Yes (0%, 100%) |
 | PS thresholds | — | low=0.3, high=0.7 |
-| PS ratios | — | remaining=0.25, prefix=0.25 |
+| PS control | — | fixed ratios |
+| Too-hard remaining ratio | — | 0.75 |
+| Too-easy prefix ratio | — | 0.25 |
+
+#### Qwen3-32B
+
+| | Baseline | Prefix Sampling |
+|---|---|---|
+| Model | Qwen3-32B | Qwen3-32B |
+| Task | R2E_Gym_Subset | R2E_Gym_Subset |
+| Rollouts per task | 8 | 8 |
+| Batch size | 64 | 64 |
+| Max prompt length | 4096 | 4096 |
+| Max response length | 65536 | 65536 |
+| Agent max steps | 100 | 100 |
+| Rejection sampling | Yes (0%, 100%) | Yes (0%, 100%) |
+| PS thresholds | — | low=0.3, high=0.7 |
+| PS control | — | adaptive prefix |
+| Initial too-hard remaining ratio | — | 0.45 |
+| Initial too-easy prefix ratio | — | 0.55 |
+| Too-easy prefix cap | — | 30 |
 
 ### Training Efficiency: Faster Convergence and Lower Cost
 
+<div style="display: flex; gap: 16px; margin-bottom: 12px;">
+  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Qwen3-14B Training Score Comparison">
+  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Qwen3-14B Step Time Comparison">
+</div>
 <div style="display: flex; gap: 16px;">
-  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Pass Rate Comparison">
-  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Step Time Comparison">
+  <img src="figures/pass_rate_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Training Score Comparison">
+  <img src="figures/step_time_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Step Time Comparison">
 </div>
 
-*Figure 3. Left: training rollout pass rate on no-prefix tasks over steps. The horizontal line marks the baseline's convergence score; PS matches it 1.55x faster and keeps improving. Right: average wall-clock time per training step (seconds).*
+*Figure 3. Top row: Qwen3-14B. Left: training rollout pass rate on no-prefix tasks over steps. The horizontal line marks the baseline's convergence score; PS matches it 1.55x faster and keeps improving. Right: average wall-clock time per training step (`1398s` vs `1601s`). Bottom row: Qwen3-32B. Left: training score comparison; PS reaches the baseline-equivalent score at step `282` vs `395`. Right: average wall-clock time per training step (`2150s` vs `2358s`).*
 
-Both PS and baseline reach similar peak rollout pass rates (~0.39), confirming that speedup does not require sacrificing final performance.  
-In the first figure, the horizontal line marks the baseline's convergence score. PS matches it in **201 steps** vs **312 steps** for baseline, a **1.55x step-efficiency improvement on no-prefix training samples**.  
-PS also continues improving beyond that point.
-
-Step count is only part of the story.  
-The second figure shows that PS also runs **~1.15x faster per step** (1398s vs 1601s average).  
-This may seem counterintuitive because PS adds prefix replay work. But replayed prefix steps are deterministic and need no LLM inference, which is much faster than generating from scratch.  
-The inference savings outweigh the overhead of managing the prefix-task queue.
-
-Combined, these two effects yield an overall **~1.78x end-to-end speedup** to reach the same rollout pass rate: 78h vs 139h wall-clock time.
+The pattern is consistent across both model sizes. On Qwen3-14B, PS matches the baseline convergence level in **201** steps versus **312**, a **1.55x step-efficiency improvement**, and also runs **~1.15x faster per step**, yielding **~1.78x end-to-end speedup** (`78h` vs `139h`). On Qwen3-32B, PS reaches the baseline-equivalent training score at **step 282** versus **395**, a **1.40x step-efficiency improvement**, while also running **~1.10x faster per step**. That translates to roughly **~1.54x end-to-end speedup** to the same training-score threshold.
 
 ### Higher Quality and Quantity Training Samples
 
+<div style="display: flex; gap: 16px; margin-bottom: 12px;">
+  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Qwen3-14B Prefix Task Pass Rate">
+  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Qwen3-14B Valid Samples Comparison">
+</div>
 <div style="display: flex; gap: 16px;">
-  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Valid Samples Comparison">
+  <img src="figures/rerollout_pass_rate_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Prefix Task Pass Rate">
+  <img src="figures/valid_samples_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Valid Samples Comparison">
 </div>
 
-*Figure 4. Left: rollout pass rate on prefix tasks only (target: 0.5). Mean = 0.529, std = 0.078 — the prefix length calibration successfully targets the information-theoretic sweet spot. Right: number of valid training tasks per batch (tasks with mixed pass/fail rollouts).*
+*Figure 4. Top row: Qwen3-14B. Left: rollout pass rate on prefix tasks only (target: `0.5`), with mean `0.529` and std `0.078`. Right: number of valid training tasks per batch (`solve_partial`), increasing from `25.9` to `36.5`. Bottom row: Qwen3-32B. Left: prefix-task rollout pass rate under adaptive prefix control, staying near the `0.5` target. Right: valid training tasks per batch, increasing from `30.8` to `39.0`.*
 
-The efficiency gains come from converting low-quality training signal into balanced, information-rich signal.  
-The first figure shows the core evidence: prefix-task rollout pass rate (measured only on tasks with prefix guidance) stays near the 0.5 target throughout training (mean = 0.529, std = 0.078).  
-This confirms that prefix-length calibration shifts task difficulty toward the information-theoretic sweet spot.
-
-The second figure shows the quantity payoff.  
-The `solve_partial` metric counts tasks per batch with mixed pass/fail rollouts, i.e., tasks that produce gradient signal.  
-PS averages **36.5 valid tasks per batch** vs **25.9** for baseline, a **41% increase** in useful training data per step.
-
-But the gain is not only in quantity.  
-Tasks with heavily skewed rollout pass rates (e.g., 1/8 or 7/8) that would have contributed weak, biased gradient signal are transformed through prefix replay into balanced partial-pass results near 50% rollout pass rate.  
-These samples are *more informative*, because their rollout pass rates concentrate near the information-theoretic optimum instead of marginal extremes.  
-That combination, 41% more samples at higher information value, drives the ~1.55x step-efficiency improvement.
+The efficiency gains come from converting weak, skewed training signal into balanced, information-rich signal. On Qwen3-14B, prefix-task rollout pass rate stays near the 0.5 target throughout training, and PS increases the number of valid training tasks per batch from **25.9** to **36.5**, a **41% increase**. On Qwen3-32B, the same mechanism holds under adaptive prefix control: prefix-task rollout pass rate remains centered near **0.5**, while valid training tasks per batch increase from **30.8** to **39.0**, or **1.27x more** useful tasks per step. In both cases, PS improves both the quantity and the information density of the training data.
 
 ### Higher Entropy, Better Exploration
 
-<img src="figures/entropy_comparison.png" style="width: 50%;" alt="Entropy Comparison">
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <img src="figures/entropy_comparison.png" style="width: 50%;" alt="Qwen3-14B Entropy Comparison">
+  <img src="figures/entropy_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Entropy Comparison">
+</div>
 
-*Figure 5. Output entropy over training steps. PS maintains higher entropy than the baseline before convergence, indicating healthier exploration. Vertical lines mark the convergence points (steps 201 and 312).*
+*Figure 5. Left: Qwen3-14B output entropy over training steps; PS maintains higher entropy than the baseline before convergence, with convergence markers at steps `201` and `312`. Right: Qwen3-32B output entropy over training steps; PS again maintains higher pre-convergence entropy, with convergence markers at steps `282` and `395`.*
 
-Entropy measures diversity in the model output distribution.  
-Higher entropy implies more exploration; collapsing entropy suggests the policy is becoming too deterministic.  
-PS maintains higher entropy than baseline before convergence, which is beneficial for RL training because it supports better exploration.  
-Both curves later converge to similar entropy levels, indicating PS does not cause premature entropy collapse.  
-The vertical lines (steps 201 and 312) show PS reaches the same final state while maintaining healthier exploration along the way.
+Entropy tells the same story on both models: PS maintains higher entropy through most of the pre-convergence phase, which supports healthier exploration without causing premature collapse. On both Qwen3-14B and Qwen3-32B, the entropy curves later approach similar levels, indicating that PS reaches the same eventual regime while exploring more effectively along the way.
 
 ## Takeaways
 
@@ -222,7 +243,7 @@ Instead, it targets the large middle ground of tasks that already produce gradie
 3. **Adaptive prefix control** automatically recalibrates prefix length as the model improves, maintaining the 50% target without manual tuning.
 4. **Dynamic on-policy prefix** uses the latest model's self-generated trajectories from the current step, ensuring prefix tasks always reflect the model's current capabilities and avoiding off-policy staleness.
 
-Our experiments on Qwen3-14B with R2E_Gym tasks show that PS matches the baseline's peak score with **1.55x better step-efficiency** and **~1.15x faster wall-clock time per step** — an overall **~1.78x end-to-end speedup**, while continuing to improve beyond the baseline's convergence point. The reported gains in this post come from fixed-ratio PS (`remaining=0.25`, `prefix=0.25`); adaptive control is included as an extensible mechanism.
+Our experiments now cover both configurations: a **fixed-ratio Qwen3-14B** setup and an **adaptive-prefix Qwen3-32B** setup. On Qwen3-14B, PS delivers **1.55x better step-efficiency** and **~1.15x faster wall-clock time per step**, for an overall **~1.78x end-to-end speedup**. On Qwen3-32B, PS reaches the same best SWE-bench Verified pass@1 score **1.40x earlier** (`290` vs `410`) while also running **~1.10x faster per step**. Together, these results show that Prefix Sampling remains effective both with fixed ratios and with adaptive prefix control.
 
 **Future work:** The current prefix length selection uses fixed ratios or a simple EMA-based adaptive controller. A promising direction is better prefix length selection — for example, learning a model that predicts the optimal prefix length for a given task and current model capability, directly targeting 50% prefix task rollout pass rate with fewer adjustment steps and less overshoot.
 
@@ -359,7 +380,7 @@ So the training target is not just “nonzero rollout pass rate,” but “maxim
 @misc{zhu2026prefixsampling,
   title = {Prefix Sampling: Agentic RL with Prefix Guidance},
   url = {TBD},
-  author = {Tianshu Zhu and Wenyu Zhang and Lun Tian and Haotian Zhao and Ruijie Xu and Jingnan Gu and Daxiang Dong and Jianmin Wu},
+  author = {Tianshu Zhu and Wenyu Zhang and Lun Tian and Haotian Zhao and Haifeng Zhang and Ruijie Xu and Jingnan Gu and Daxiang Dong and Jianmin Wu},
   year = {2026},
   month = {Mar},
 }
