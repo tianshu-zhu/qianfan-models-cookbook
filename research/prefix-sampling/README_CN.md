@@ -73,9 +73,9 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxi
 **Too-Hard (0%-30%)：** 大多数 rollouts 都失败，但至少有一个成功。原始 rollouts 同样参与训练；此外，我们会保存一条成功轨迹并送入 **Prefix & Mask**。其中一部分成功轨迹会变成 prefix，在下一轮 replay 时给模型一个“head start”。
 
 简化来看：
-- **Drop：** all-fail 和 all-pass，沿用标准 rejection sampling。
-- **Train directly：** normal tasks，本来就在高质量区间。
-- **Recycle：** too-hard 和 too-easy，通过 prefix replay 把 rollout pass rate 重新拉回平衡区间。
+- **Discard：** all-fail 和 all-pass，沿用标准 rejection sampling。
+- **RL Train：** normal tasks，本来就在高质量区间。
+- **Prefix & Mask：** too-hard 和 too-easy 先经过 prefix replay，把 rollout pass rate 重新拉回平衡区间，再注入下一轮 mixed batch。
 
 整个机制的关键在于：**prefix replay** 负责恢复保存轨迹对应的环境状态，**prefix selection** 决定要重放多长的前缀，**prefix masking** 确保前缀 token 不参与梯度更新，而 **adaptive prefix** 则用于把目标 rollout pass rate 稳定在约 50%。这样，原本通过率偏斜的任务就能通过这个 prefix-guided replay loop，转化为信息量更高的训练样本。
 
@@ -93,7 +93,7 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxi
 3. **Execution context：** 把 agent 放回 prefix 轨迹停下来的那个精确位置。
 
 在这个恢复出来的状态上，模型会继续生成新的后续轨迹，并自己决定接下来做什么。  
-需要强调的是，prefix 本身并不是训练时要学习模仿的输入内容；它只是新 rollout 的**起始条件**。这和 SFT 是本质不同的，SFT 会直接训练模型去模仿这些 prefix 动作，而 PS 不会。
+需要强调的是，prefix 本身并不是 credit assignment 的对象；它只是新 rollout 的**起始条件**。Prefix Sampling 的目标，是改善后续 continuation 的 RL 训练信号，而不是把来自 earlier trajectory 的 prefix 动作本身拿来计奖或计罚。
 
 ### Prefix Selection
 
@@ -127,7 +127,7 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 一个非常关键的设计是：**prefix tokens 不参与梯度更新。**训练时，prefix 区域的 response mask 会被置为 0，只有模型在 prefix 之后自己生成的 continuation 才会接收到梯度信号。
 
 为什么这点很重要？  
-如果不做 mask，prefix 也会参与 advantage 计算。这样一来，如果 continuation 失败，prefix 对应的步骤就会收到负 advantage，相当于惩罚模型并没有真正做出的动作；如果 continuation 成功，prefix 步骤又会收到正 advantage，相当于奖励来自另一条轨迹的决策。无论哪种情况，本质上都变成了让模型去模仿或规避别人做过的动作，这更像 SFT，而不是 RL。
+如果不做 mask，prefix 也会参与 advantage 计算，尽管这些动作来自一条 earlier trajectory。这样就会引入典型的 off-policy credit assignment 问题：如果 continuation 失败，原本正确的 prefix 动作可能会收到负 advantage；如果 continuation 成功，原本错误的 prefix 动作又可能会收到正 advantage。无论哪种情况，reward 都会被错误地分配给当前 rollout 中模型并没有真正做出的决策，从而让 RL 训练更噪、更不稳定。
 
 加上 mask 之后，训练目标就保持为纯粹的 RL：模型只会因为**自己**在当前起始状态下做出的决策而得到奖励或惩罚。
 

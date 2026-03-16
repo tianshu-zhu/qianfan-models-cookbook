@@ -75,9 +75,9 @@ Based on rollout pass rate, each task follows one of five paths:
 **Too-Hard (0%-30%)**: Most rollouts fail, but at least one passes. Original rollouts are trained on, and one successful trajectory is saved and sent to **Prefix & Mask**. A portion of the successful trajectory becomes the prefix, giving the model a "head start" when replayed in the next batch.
 
 In short:
-- **Drop:** all-fail and all-pass tasks (standard rejection sampling).
-- **Train directly:** normal tasks (already balanced).
-- **Recycle:** too-hard and too-easy tasks via prefix replay to rebalance rollout pass rate.
+- **Discard:** all-fail and all-pass tasks (standard rejection sampling).
+- **RL Train:** normal tasks (already balanced).
+- **Prefix & Mask:** too-hard and too-easy tasks go through prefix replay to rebalance rollout pass rate before being injected back into the next batch.
 
 The key mechanism: **prefix replay** restores environment state from saved trajectories, **prefix selection** determines how much to replay, **prefix masking** excludes prefix tokens from gradients, and **adaptive prefix** control maintains ~50% rollout pass rate. Tasks with skewed rollout pass rates are converted into more informative training samples through this prefix-guided replay loop.
 
@@ -91,7 +91,7 @@ Unlike single-turn reasoning tasks where a prefix is simply prepended text, SWE-
 2. **Conversation history**: The full dialogue (user messages, agent responses, tool outputs) up to step K is loaded
 3. **Execution context**: The agent is positioned exactly where the prefix trajectory left off
 
-From this restored state, the model generates new continuations — making its own decisions about what to do next. The prefix is not part of the model's input for training; it's purely the *starting condition* for a new rollout. This is fundamentally different from SFT, where the model would be trained to imitate the prefix actions themselves.
+From this restored state, the model generates new continuations — making its own decisions about what to do next. The prefix is not a target of credit assignment; it is purely the *starting condition* for a new rollout. That distinction is important because Prefix Sampling is meant to improve RL training signal, not to assign reward or blame to actions copied from an earlier trajectory.
 
 ### Prefix Selection
 
@@ -123,7 +123,7 @@ In practice, fixed ratios of `prefix_ratio=0.25` and `remaining_ratio=0.25` work
 
 A critical design choice: **prefix tokens are excluded from gradient updates.** During training, the response mask is set to zero for all tokens in the prefix region. Only the model's own continuation — the decisions it made after the prefix — receives gradient signal.
 
-Why is this essential? Without masking, the prefix would participate in advantage computation. If the continuation fails, the prefix steps would receive negative advantage — penalizing actions the model didn't choose. If the continuation succeeds, the prefix would receive positive advantage — reinforcing actions from a different trajectory. Either way, the model would be learning to imitate (or avoid) someone else's decisions, which is SFT, not RL.
+Why is this essential? Without masking, the prefix would participate in advantage computation even though it comes from an earlier trajectory. That creates an off-policy credit-assignment problem: if the continuation fails, correct prefix actions could receive negative advantage; if the continuation succeeds, incorrect prefix actions could receive positive advantage. In both cases, reward is attributed to decisions the model did not make in the current rollout, which makes RL training noisier and less stable.
 
 With masking, the training objective remains pure RL: the model is only rewarded or penalized for its own choices, given a particular starting state.
 
