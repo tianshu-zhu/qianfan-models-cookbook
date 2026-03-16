@@ -196,7 +196,9 @@ Across the experiments reported here, the Qwen3-14B and Qwen3-32B setups share t
 
 *Figure 3. Top row: Qwen3-14B. Left: training rollout pass rate on no-prefix tasks over steps. The horizontal line marks the baseline's convergence score; PS matches it 1.55x faster and keeps improving. Right: average wall-clock time per training step (`1398s` vs `1601s`). Bottom row: Qwen3-32B. Left: training score comparison; PS reaches the baseline-equivalent score at step `282` vs `395`. Right: average wall-clock time per training step (`2150s` vs `2358s`).*
 
-The pattern is consistent across both model sizes. On Qwen3-14B, PS matches the baseline convergence level in **201** steps versus **312**, a **1.55x step-efficiency improvement**, and also runs **~1.15x faster per step**, yielding **~1.78x end-to-end speedup** (`78h` vs `139h`). On Qwen3-32B, PS reaches the baseline-equivalent training score at **step 282** versus **395**, a **1.40x step-efficiency improvement**, while also running **~1.10x faster per step**. That translates to roughly **~1.54x end-to-end speedup** to the same training-score threshold.
+The pattern is consistent across both model sizes. On Qwen3-14B, PS matches the baseline convergence level in **201** steps versus **312**, a **1.55x step-efficiency improvement**, and also runs **~1.15x faster per step**, yielding **~1.78x end-to-end speedup**. On Qwen3-32B, PS reaches the baseline-equivalent training score at **step 282** versus **395**, a **1.40x step-efficiency improvement**, while also running **~1.10x faster per step**. That translates to roughly **~1.54x end-to-end speedup** to the same training-score threshold.
+
+The per-step speedup comes from the same mechanism. Prefix replay restores the environment from an intermediate state and reuses an existing trajectory prefix, so that portion of the rollout no longer needs fresh LLM generation. Those replayed prefix steps are mostly deterministic environment transitions rather than new decoding work, and the generation savings are large enough to outweigh the queueing and bookkeeping overhead introduced by Prefix Sampling.
 
 ### Higher Quality and Quantity Training Samples
 

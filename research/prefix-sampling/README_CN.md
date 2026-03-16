@@ -201,7 +201,9 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 *图 3. 第一行：Qwen3-14B。左图：不含 prefix 的训练任务，其 rollout pass rate 随训练步数变化。水平线表示 baseline 的收敛分数，PS 以 1.55x 更快的速度达到该分数，并继续提升。右图：每个训练 step 的平均 wall-clock 时间（`1398s` vs `1601s`）。第二行：Qwen3-32B。左图：训练 score 对比，PS 在 step `282` 达到 baseline 等效 score，而 baseline 需要 `395`。右图：每个训练 step 的平均 wall-clock 时间（`2150s` vs `2358s`）。*
 
-这个模式在两种模型规模上都一致。对于 Qwen3-14B，PS 在 **201** steps 达到 baseline 的收敛水平，而 baseline 需要 **312** steps，也就是 **1.55x 的 step-efficiency 提升**；同时，PS 的单步训练速度也快约 **1.15x**，最终带来 **~1.78x 的端到端加速**（`78h` vs `139h`）。对于 Qwen3-32B，PS 在 **step 282** 达到 baseline 等效训练 score，而 baseline 需要 **395**，对应 **1.40x 的 step-efficiency 提升**；同时，它的单步速度也快约 **1.10x**，合起来大致对应 **~1.54x 的端到端加速**。
+这个模式在两种模型规模上都一致。对于 Qwen3-14B，PS 在 **201** steps 达到 baseline 的收敛水平，而 baseline 需要 **312** steps，也就是 **1.55x 的 step-efficiency 提升**；同时，PS 的单步训练速度也快约 **1.15x**，最终带来 **~1.78x 的端到端加速**。对于 Qwen3-32B，PS 在 **step 282** 达到 baseline 等效训练 score，而 baseline 需要 **395**，对应 **1.40x 的 step-efficiency 提升**；同时，它的单步速度也快约 **1.10x**，合起来大致对应 **~1.54x 的端到端加速**。
+
+单步变快来自同一个机制。Prefix replay 会从中间状态恢复环境，并复用一段已有轨迹的 prefix，因此这部分 rollout 不再需要重新做 LLM generation。这些 replay 的 prefix steps 大多只是确定性的环境恢复与状态推进，而不是新的 decoding 开销，所以节省下来的生成成本足以覆盖 Prefix Sampling 额外引入的 queue 和 bookkeeping 开销。
 
 ### 更高质量、也更多的有效训练样本
 
