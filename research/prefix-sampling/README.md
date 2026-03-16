@@ -8,10 +8,9 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxi
 
 ## TL;DR
 
-<div style="display: flex; gap: 16px; align-items: flex-start;">
-  <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" style="width: 50%;" alt="Qwen3-14B SWE-bench Verified Comparison">
-  <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" style="width: 50%;" alt="Qwen3-32B SWE-bench Verified Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" width="100%" alt="Qwen3-14B SWE-bench Verified Comparison"> | <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" width="100%" alt="Qwen3-32B SWE-bench Verified Comparison"> |
 
 *Figure 1. Left: Qwen3-14B SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's peak score 1.8x faster and ultimately reaches 0.298 vs 0.273. Right: Qwen3-32B SWE-bench Verified pass@1 score over training steps, averaged over 3 runs. PS reaches the baseline's best score of 0.422 at step 290, while baseline reaches the same score at step 410.*
 
@@ -190,14 +189,10 @@ Across the experiments reported here, the Qwen3-14B and Qwen3-32B setups share t
 
 ### Training Efficiency: Faster Convergence and Lower Cost
 
-<div style="display: flex; gap: 16px; margin-bottom: 12px;">
-  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Qwen3-14B Training Score Comparison">
-  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Qwen3-14B Step Time Comparison">
-</div>
-<div style="display: flex; gap: 16px;">
-  <img src="figures/pass_rate_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Training Score Comparison">
-  <img src="figures/step_time_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Step Time Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/pass_rate_comparison.png" width="100%" alt="Qwen3-14B Training Score Comparison"> | <img src="figures/step_time_comparison.png" width="100%" alt="Qwen3-14B Step Time Comparison"> |
+| <img src="figures/pass_rate_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Training Score Comparison"> | <img src="figures/step_time_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Step Time Comparison"> |
 
 *Figure 3. Top row: Qwen3-14B. Left: training rollout pass rate on no-prefix tasks over steps. The horizontal line marks the baseline's convergence score; PS matches it 1.55x faster and keeps improving. Right: average wall-clock time per training step (`1398s` vs `1601s`). Bottom row: Qwen3-32B. Left: training score comparison; PS reaches the baseline-equivalent score at step `282` vs `395`. Right: average wall-clock time per training step (`2150s` vs `2358s`).*
 
@@ -205,14 +200,10 @@ The pattern is consistent across both model sizes. On Qwen3-14B, PS matches the 
 
 ### Higher Quality and Quantity Training Samples
 
-<div style="display: flex; gap: 16px; margin-bottom: 12px;">
-  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Qwen3-14B Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Qwen3-14B Valid Samples Comparison">
-</div>
-<div style="display: flex; gap: 16px;">
-  <img src="figures/rerollout_pass_rate_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Valid Samples Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/rerollout_pass_rate.png" width="100%" alt="Qwen3-14B Prefix Task Pass Rate"> | <img src="figures/valid_samples_comparison.png" width="100%" alt="Qwen3-14B Valid Samples Comparison"> |
+| <img src="figures/rerollout_pass_rate_qwen32b.png" width="100%" alt="Qwen3-32B Prefix Task Pass Rate"> | <img src="figures/valid_samples_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Valid Samples Comparison"> |
 
 *Figure 4. Top row: Qwen3-14B. Left: rollout pass rate on prefix tasks only (target: `0.5`), with mean `0.529` and std `0.078`. Right: number of valid training tasks per batch (`solve_partial`), increasing from `25.9` to `36.5`. Bottom row: Qwen3-32B. Left: prefix-task rollout pass rate under adaptive prefix control, staying near the `0.5` target. Right: valid training tasks per batch, increasing from `30.8` to `39.0`.*
 
@@ -220,10 +211,9 @@ The efficiency gains come from converting weak, skewed training signal into bala
 
 ### Higher Entropy, Better Exploration
 
-<div style="display: flex; gap: 16px; align-items: flex-start;">
-  <img src="figures/entropy_comparison.png" style="width: 50%;" alt="Qwen3-14B Entropy Comparison">
-  <img src="figures/entropy_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Entropy Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/entropy_comparison.png" width="100%" alt="Qwen3-14B Entropy Comparison"> | <img src="figures/entropy_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Entropy Comparison"> |
 
 *Figure 5. Left: Qwen3-14B output entropy over training steps; PS maintains higher entropy than the baseline before convergence, with convergence markers at steps `201` and `312`. Right: Qwen3-32B output entropy over training steps; PS again maintains higher pre-convergence entropy, with convergence markers at steps `282` and `395`.*
 

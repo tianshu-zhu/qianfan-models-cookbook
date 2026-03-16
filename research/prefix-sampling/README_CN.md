@@ -8,10 +8,9 @@ Tianshu Zhu, Wenyu Zhang, Lun Tian, Haotian Zhao, Haifeng Zhang, Ruijie Xu, Yuxi
 
 ## TL;DR
 
-<div style="display: flex; gap: 16px; align-items: flex-start;">
-  <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" style="width: 50%;" alt="Qwen3-14B SWE-bench Verified Comparison">
-  <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" style="width: 50%;" alt="Qwen3-32B SWE-bench Verified Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/qwen3_14b_ps_vs_baseline_1to1_repro_v2.png" width="100%" alt="Qwen3-14B SWE-bench Verified Comparison"> | <img src="figures/qwen3_32b_ps_vs_baseline_1to1_repro_max_table6.png" width="100%" alt="Qwen3-32B SWE-bench Verified Comparison"> |
 
 *图 1. 左图：Qwen3-14B 的 SWE-bench Verified pass@1 分数随训练步数变化，结果为 3 次实验取平均。PS 以 1.8x 更少的训练步数达到 baseline 的峰值分数，并最终达到 0.298，对比 baseline 的 0.273。右图：Qwen3-32B 的 SWE-bench Verified pass@1 分数随训练步数变化，结果同样为 3 次实验取平均。PS 在 step 290 达到 baseline 的最佳分数 0.422，而 baseline 在 step 410 才达到相同分数。*
 
@@ -195,14 +194,10 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 ### Training Efficiency：收敛更快，成本更低
 
-<div style="display: flex; gap: 16px; margin-bottom: 12px;">
-  <img src="figures/pass_rate_comparison.png" style="width: 50%;" alt="Qwen3-14B Training Score Comparison">
-  <img src="figures/step_time_comparison.png" style="width: 50%;" alt="Qwen3-14B Step Time Comparison">
-</div>
-<div style="display: flex; gap: 16px;">
-  <img src="figures/pass_rate_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Training Score Comparison">
-  <img src="figures/step_time_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Step Time Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/pass_rate_comparison.png" width="100%" alt="Qwen3-14B Training Score Comparison"> | <img src="figures/step_time_comparison.png" width="100%" alt="Qwen3-14B Step Time Comparison"> |
+| <img src="figures/pass_rate_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Training Score Comparison"> | <img src="figures/step_time_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Step Time Comparison"> |
 
 *图 3. 第一行：Qwen3-14B。左图：不含 prefix 的训练任务，其 rollout pass rate 随训练步数变化。水平线表示 baseline 的收敛分数，PS 以 1.55x 更快的速度达到该分数，并继续提升。右图：每个训练 step 的平均 wall-clock 时间（`1398s` vs `1601s`）。第二行：Qwen3-32B。左图：训练 score 对比，PS 在 step `282` 达到 baseline 等效 score，而 baseline 需要 `395`。右图：每个训练 step 的平均 wall-clock 时间（`2150s` vs `2358s`）。*
 
@@ -210,14 +205,10 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 ### 更高质量、也更多的有效训练样本
 
-<div style="display: flex; gap: 16px; margin-bottom: 12px;">
-  <img src="figures/rerollout_pass_rate.png" style="width: 50%;" alt="Qwen3-14B Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison.png" style="width: 50%;" alt="Qwen3-14B Valid Samples Comparison">
-</div>
-<div style="display: flex; gap: 16px;">
-  <img src="figures/rerollout_pass_rate_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Prefix Task Pass Rate">
-  <img src="figures/valid_samples_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Valid Samples Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/rerollout_pass_rate.png" width="100%" alt="Qwen3-14B Prefix Task Pass Rate"> | <img src="figures/valid_samples_comparison.png" width="100%" alt="Qwen3-14B Valid Samples Comparison"> |
+| <img src="figures/rerollout_pass_rate_qwen32b.png" width="100%" alt="Qwen3-32B Prefix Task Pass Rate"> | <img src="figures/valid_samples_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Valid Samples Comparison"> |
 
 *图 4. 第一行：Qwen3-14B。左图：仅统计 prefix tasks 的 rollout pass rate（目标为 `0.5`），均值 `0.529`、标准差 `0.078`。右图：每个 batch 的有效训练任务数量（`solve_partial`），从 `25.9` 提升到 `36.5`。第二行：Qwen3-32B。左图：在 adaptive prefix 控制下，prefix-task rollout pass rate 稳定围绕 `0.5` 目标波动。右图：每个 batch 的有效训练任务数量从 `30.8` 提升到 `39.0`。*
 
@@ -225,10 +216,9 @@ target_step = min(int(total_steps × prefix_ratio), prefix_cap)
 
 ### 更高的 Entropy，更好的 Exploration
 
-<div style="display: flex; gap: 16px; align-items: flex-start;">
-  <img src="figures/entropy_comparison.png" style="width: 50%;" alt="Qwen3-14B Entropy Comparison">
-  <img src="figures/entropy_comparison_qwen32b.png" style="width: 50%;" alt="Qwen3-32B Entropy Comparison">
-</div>
+| | |
+| --- | --- |
+| <img src="figures/entropy_comparison.png" width="100%" alt="Qwen3-14B Entropy Comparison"> | <img src="figures/entropy_comparison_qwen32b.png" width="100%" alt="Qwen3-32B Entropy Comparison"> |
 
 *图 5. 左图：Qwen3-14B 的输出 entropy 随训练步数变化；PS 在收敛前维持更高 entropy，收敛标记分别为 steps `201` 和 `312`。右图：Qwen3-32B 的输出 entropy 随训练步数变化；PS 同样在收敛前维持更高 entropy，收敛标记分别为 steps `282` 和 `395`。*
 
